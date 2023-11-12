@@ -20,6 +20,8 @@ In 2023 Arduino [Renesas Core](https://github.com/arduino/ArduinoCore-renesas) f
 
 The [WiFiS3](https://github.com/arduino/ArduinoCore-renesas/blob/main/libraries/WiFiS3) library for the Uno R4 in 2023 introduced further updated API for Server with constructor without a parameter, server.begin with parameter port and server.end().
 
+The Mbed Core, ESP8266 Core, ESP32 Core and RP2040 Core use method `config` in Ethernet library too. They also have getter and setter names for DNS and macAddress like the WiFi library. It could be the future of the Ethernet library API.
+
 ## TCP/IP
 
 All Arduino networking libraries are for TCP/IP networks. The Client class is for a TCP connection, the Server class is for a TCP listening socket and the UDP class is for receiving and sending UDP messages. The  Ethernet/WiFi object handles the control of the network interface and hardware.
@@ -46,7 +48,7 @@ A WiFi library should have WiFiClient.h with a WiFiClient class, WiFiServer.h wi
 
 Note that the header file for UDP uses "Udp" and the class name uses "UDP".
 
-To specify the library in the sketch with an include directive, the library must have a header file with a unique name. This name should be specified in library.properties file `includes` key. The build system ensures that any other include from the library in the sketch source files or in other libraries included in the sketch will be from this library. For example `#include <WiFiUdp.h>` will use WiFiUdp.h from the WiFi library included in the sketch.
+To specify the library in the sketch with an include directive, the library must have a header file with a unique name. The build system ensures that any other include from the library in the sketch source files or in other libraries included in the sketch will be from this library. For example `#include <WiFiUdp.h>` will use WiFiUdp.h from the WiFi library included in the sketch.
 
 Libraries bundled with a core can have generic names WiFi and Ethernet, because bundled libraries have priority over installed libraries.
 
@@ -138,19 +140,21 @@ WiFi libraries by Arduino return the MAC address in reversed byte ordering. It i
 
 ### begin
 
-Methods named `begin` are used to connect to network with DHCP or static IP settings.
+Methods named `begin` are used to connect to network. 
 
-Some Ethernet hardware requires to set the MAC address. Then all versions of [`begin`](https://www.arduino.cc/reference/en/libraries/ethernet/ethernet.begin/) have it as a first parameter.
+In many libraries the hardware is initialized at first call to `begin`. 
+
+If the library requires to set the MAC address, then all versions of [`begin`](https://www.arduino.cc/reference/en/libraries/ethernet/ethernet.begin/) have it as a first parameter.
 
 For WiFi libraries [`begin`](https://www.arduino.cc/reference/en/libraries/wifi/wifi.begin/) has parameters for SSID and password/key and optional BSSID. It joins the specified AP.
 
-Static IP settings for Ethernet are usually additional parameters for `begin`. Static IP settings for WiFi libraries use method `config` to set the IP addresses.
+Static IP settings for legacy Ethernet libraries are additional parameters for `begin`. WiFi libraries and modern Ethernet libraries use method `config` to set the static IP addresses data.
 
-If static IP is not provided, `begin` connects to network using DHCP to get the network settings. 
+If static IP is not provided, `begin` uses DHCP to get the network settings. For Ethernet libraries `begin` for DHCP can have additional optional parameters for timeouts for DHCP communication.  For WiFi libraries, WiFiNINA, for example, has `setTimeout` to set the timeout for `begin`.
 
-Method `begin` for DHCP is blocking. It returns 1 when DHCP settings were received and 0 if DHCP failed. For Ethernet libraries `begin` for DHCP can have additional optional parameters for timeouts for DHCP communication.  WiFiNINA, for example, has `setTimeout` to set the timeout for `begin`.
+Method `begin` is blocking. It returns 1 it was successful (initialized hardware, joined AP, retrieved IP settings by  DHCP) and 0 if it failed. 
 
-In esp8266 and esp32 WiFi libraries `begin` is not blocking. User must check `status()` or use method `waitForConnectResult`.
+(In esp8266 and esp32 WiFi libraries `begin` is not blocking. User must check `status()` or use method `waitForConnectResult`.)
 
 In some WiFi libraries method `begin` without parameters attempts to join the last used AP.
 
@@ -174,9 +178,9 @@ Some libraries require periodic maintenance to handle the network even if no oth
 
 ## Static IP
 
-### begin (Ethernet) and config (WiFi)
+### config (begin)
 
-Most Ethernet libraries have static IP configured as parameters of method [`begin`](https://www.arduino.cc/reference/en/libraries/ethernet/ethernet.begin/). WiFi libraries have method [`config`](https://www.arduino.cc/reference/en/libraries/wifi/wifi.config/).If the library uses `config`, for static IP, `config` must be executed before `begin` to skip DHCP.
+Legacy Ethernet libraries have static IP configured as parameters of method [`begin`](https://www.arduino.cc/reference/en/libraries/ethernet/ethernet.begin/). WiFi libraries and modern Ethernet libraries have method [`config`](https://www.arduino.cc/reference/en/libraries/wifi/wifi.config/).If the library uses `config`, for static IP, `config` must be executed before `begin` to skip DHCP.
 
 ```
 config(IPAddress local_ip, IPAddress dns_server = IP_ALL_ZERO, IPAddress gateway = IP_ALL_ZERO, IPAddress subnet = IP_ALL_ZERO);
@@ -186,7 +190,6 @@ For static IP configuration user must specify the local IP address. The rest of 
 
 `WiFi.config(INADDR_NONE)` should clear static IP configuration and set use of DHCP on next 'begin'.
 
-For unifying the API, Ethernet libraries should use `config` too.
 
 ### setDNS (optional)
 
@@ -204,7 +207,7 @@ Ethernet libraries historically have method `setDnsServerIP` with one parameter.
 
 These methods return the corresponding IP addresses sent by DHCP or set as static IP configuration.
 
-### dnsIP
+### dnsIP (optional)
 
 ```
 IPAddress dnsIP(uint8_t n = 0);
@@ -214,7 +217,7 @@ The method returns the currently configured IP address for the DNS. The method h
 
 The method was first used in a library by Arduino (WiFiS3) only recently and is not yet documented by Arduino. It was introduced long time ago in the ESP8266WiFi library. 
 
-Ethernet libraries historically have method `dnsServerIP` without a parameter.
+Legacy Ethernet libraries have method `dnsServerIP` without a parameter.
 
 ### SSID and BSSID (WiFi)
 
@@ -237,9 +240,9 @@ enum EthernetLinkStatus {
 
 It should work before `begin` is called.  If `init` or `setPin` is required, the user must invoke it before `linkStatus`.
 
-### status (WiFi)
+### status
 
-Method [`status()`](https://www.arduino.cc/reference/en/libraries/wifi/wifi.status/) returns the state of the WiFi station as one of `wl_status_t` enumeration values. 
+Method [`status()`](https://www.arduino.cc/reference/en/libraries/wifi/wifi.status/) returns the state of the WiFi station as one of `wl_status_t` enumeration values. The use of `status()` in modern Ethernet libraries is not yet established.
 
 A special value `WL_NO_SHIELD` / `WL_NO_MODULE` is used to indicate problem communicating with the networking hardware, therefor it must work before `begin` is called.
 
@@ -313,7 +316,7 @@ TODO
   int32_t RSSI(uint8_t index);
   
   setScanMethod, setSortMEthod
- ```
+```
  
 ## WiFi Access Point mode 
 
@@ -375,11 +378,15 @@ The base `Client` class has only pure virtual methods. Some of them are a repeat
 
 Client objects are used for connections initiated on the local device and same type of Client objects are returned by server object for connections initiated by remote host.
 
-The implementation of the Client class must have a constructor without parameters. Usually there is a second constructor for server to create a client object for an incoming connection.
+The implementation of the Client class must have a constructor without parameters. Usually there is a second private constructor for server as `friend class` to create a client object for an incoming connection.
 
-Important! The implementation of the Client class must by copyable and all copies must stay valid to be used with the connection concurrently. The object can't hold the state of the underlying connection and buffers, there must by other object to which all copies of the Client object for the specific TCP connection refer.
+Client implementations are part of the 'Arduino language' which doesn't use pointers or references. The implementation of the Client class must by copyable and all copies must stay valid to be used with the connection concurrently. 
 
-Networking hardware firmwares and LwIP use a number to identify one of the limited number of available 'sockets'. An active Client uses a socket. The library has to manage use of sockets by Clients. For example when the socket disconnects the Client object still may have data to read from receive buffer. Does the library make the socket available for the next Client at that time or it waits until all the data are read and the sketch calls stop()? In stop(), will the library wait until the socket is closed to mark it free or it will exist stop() immediately and mark the socket as free based on an event or later check?
+Because multiple copies of a Client object can exist for one TCP connection, it can't hold the state of the underlying connection and buffers. There must by other object to which all copies of the Client object for the specific TCP connection refer. Some libraries use std::shared_ptr which is ideal for this case. Some libraries use a 'socket number', an index to a list of connections managed by the library/firmware.
+
+An empty client without reference to a TCP connection is like 'NULL'. The operator bool returns false. This is for example used as a return value from server.accept() if there is no new connection.
+
+Networking hardware firmwares and LwIP have a limited number of available 'sockets'. An active Client uses a socket. The library has to manage use of sockets by Clients. For example when the socket disconnects the Client object still may have data to read from receive buffer. Does the library make the socket available for the next Client at that time or it waits until all the data are read and the sketch calls stop()? In stop(), will the library wait until the socket is closed to mark it free or it will exist stop() immediately and mark the socket as free based on an event or later check?
 
 ## Connection
 
@@ -389,7 +396,7 @@ The method [`connect`](https://www.arduino.cc/reference/en/libraries/ethernet/cl
 
 `connect` is blocking. Some libraries have a way to set timeout for `connect`.
 
-`connect` returns 1 if the connection was established and 0 if the connection was not successful. No other return values are allowed.
+`connect` returns 1 if the connection was established and 0 if the connection was not successful. **No other return values are allowed**.
 
 ### stop
 
@@ -400,6 +407,8 @@ In stop() the receive buffer can be disposed.
 ### operator bool
 
 The [`operator bool`](https://www.arduino.cc/reference/en/libraries/ethernet/if-ethernetclient/) is pure virtual in Client class. It should return true if the object is assigned to underlying resource representing the TCP connection and false if the object is empty/dummy. It is used with server's `available` or `accept` which return an empty Client object if there is no connection to return.
+
+Operator bool should never check the state of the connection. A closed connection may still have data available to read and for example server will return it from `svailable()`. The usual `if (client)` check would then fail for a closed connection which has data available.
 
 ### connected()
 
